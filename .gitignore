@@ -1,16 +1,33 @@
+nano .gitignore
+```
+
+Add:
+```
 # Virtual environment
 venv/
-
-# Data files
-*.csv
-*.pkl
+env/
+.venv/
 
 # Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
-# Generated images
-*.png
+# Data files (optional - you might want to track small ones)
+data/*.csv
+
+# Models (can be regenerated)
+models/*.pkl
+
+# Results
+results/*.png
 
 # OS files
 .DS_Store
+.idea/
+*.swp
+
+# API keys (IMPORTANT!)
+.env
+config_local.py
