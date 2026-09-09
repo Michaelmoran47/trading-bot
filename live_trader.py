@@ -4,6 +4,7 @@ Uses trained ML model to make real-time trading decisions
 """
 
 import alpaca_trade_api as tradeapi
+import os
 import pandas as pd
 import numpy as np
 import joblib
@@ -283,9 +284,12 @@ class LiveTrader:
             self.get_account_info()
 
 if __name__ == "__main__":
-    # ⚠️ REPLACE THESE WITH YOUR ALPACA PAPER TRADING KEYS
+    API_KEY = os.getenv('ALPACA_API_KEY')
+    API_SECRET = os.getenv('ALPACA_API_SECRET')
+    if not API_KEY or not API_SECRET:
+        raise RuntimeError('Set ALPACA_API_KEY and ALPACA_API_SECRET before starting the trader')
 
-    
+
     trader = LiveTrader(
         api_key=API_KEY,
         api_secret=API_SECRET,

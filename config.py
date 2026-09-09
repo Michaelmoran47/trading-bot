@@ -10,15 +10,15 @@ Supports: any NYSE (and other US) stock, or any crypto available on Kraken.
 # Asset type: "crypto" or "stock"
 #   - crypto: fetches via CCXT (Kraken). Use SYMBOL format expected by exchange (e.g. BTC/USDT).
 #   - stock:  fetches via yfinance (NYSE, NASDAQ, etc.). Use ticker symbol (e.g. SPY, AAPL).
-ASSET_TYPE = "stock"
+ASSET_TYPE = "crypto"
 
 # Display name: used in labels, filenames, and messages (e.g. "BTC", "SPY", "AAPL").
-ASSET = "F"
+ASSET = "BTC"
 
 # Symbol for the data source:
 #   - For crypto: exchange pair, e.g. "BTC/USDT", "ETH/USDT".
 #   - For stock:  same as ticker, e.g. "SPY", "AAPL".
-SYMBOL = "F"
+SYMBOL = "BTC/USDT"
 
 # Candle timeframe: "1h" (hourly) or "1d" (daily).
 #   - Crypto: 1h typical; Kraken supports both.
