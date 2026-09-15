@@ -5,3 +5,4 @@ joblib>=1.0.0
 matplotlib>=3.5.0
 ccxt>=4.0.0
 yfinance>=0.2.0
+alpaca-trade-api>=3.0.0

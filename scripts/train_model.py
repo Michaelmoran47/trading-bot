@@ -1,10 +1,8 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import joblib
-import random
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -57,7 +55,7 @@ def train_model(X_train, y_train):
         n_estimators=100,      # Number of trees
         max_depth=10,          # Maximum depth of trees
         min_samples_split=20,  # Minimum samples to split a node
-        random_state=random.randint(0, 1000000000),       # For reproducibility
+        random_state=42,       # Fixed for reproducibility
         n_jobs=-1              # Use all CPU cores
     )
     
