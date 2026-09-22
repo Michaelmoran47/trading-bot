@@ -245,12 +245,21 @@ class LiveTrader:
         else:
             print(f"{Colors.CYAN}↔ No action needed{Colors.END}")
     
+    def is_market_open(self):
+        """Check whether the exchange is currently open for trading"""
+        clock = self.api.get_clock()
+        return clock.is_open
+
     def run_once(self):
         """Run one trading cycle"""
         print(f"\n{Colors.BOLD}{Colors.CYAN}{'='*60}")
         print(f"Trading Cycle - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"{'='*60}{Colors.END}\n")
-        
+
+        if not self.is_market_open():
+            print(f"{Colors.YELLOW}Market is closed — skipping this cycle{Colors.END}")
+            return
+
         # Get account info
         self.get_account_info()
         
@@ -300,14 +309,18 @@ if __name__ == "__main__":
         model_path=MODEL_PATH
     )
         
-    # Run once or continuously
-    print("\nChoose mode:")
-    print("1. Run once (single prediction)")
-    print("2. Run continuously (check every hour)")
-    
-    choice = input("\nEnter 1 or 2: ")
-    
-    if choice == '1':
+    if '--once' in sys.argv:
+        # Non-interactive single cycle, e.g. for a cron/scheduled invocation.
         trader.run_once()
     else:
-        trader.run_continuous(interval_minutes=60)
+        # Run once or continuously
+        print("\nChoose mode:")
+        print("1. Run once (single prediction)")
+        print("2. Run continuously (check every hour)")
+
+        choice = input("\nEnter 1 or 2: ")
+
+        if choice == '1':
+            trader.run_once()
+        else:
+            trader.run_continuous(interval_minutes=60)
