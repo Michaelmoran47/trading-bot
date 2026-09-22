@@ -38,9 +38,8 @@ pip install -r requirements.txt
 1. Edit `config.py`:
    - `ASSET_TYPE`: `"crypto"` (Kraken via ccxt) or `"stock"` (Yahoo Finance via yfinance)
    - `ASSET` / `SYMBOL`: e.g. `SPY` / `SPY`, or `BTC` / `BTC/USDT`
-   - `TIMEFRAME`: `"1h"` or `"1d"` — **note:** this only controls the offline
-     pipeline below; `live_trader.py` currently hardcodes hourly bars
-     regardless of this setting (see [Known limitations](#known-limitations)).
+   - `TIMEFRAME`: `"1h"` or `"1d"` — used by both the offline pipeline and
+     `live_trader.py`.
 2. Run everything:
    ```bash
    python3 run_pipeline.py
@@ -108,13 +107,8 @@ error) just logs a traceback and waits for the next hourly fire.
 
 ## Known limitations
 
-- **Live trader ignores `config.TIMEFRAME`** — it's hardcoded to hourly bars.
-  Changing `config.py`'s timeframe only affects the offline pipeline.
 - **No crypto support in `live_trader.py`** — only Alpaca's stock/equity API
   is implemented, even though the offline pipeline supports crypto via Kraken.
-- **Feature calculation is duplicated** between `scripts/feature_calc.py` and
-  `live_trader.py`'s `calculate_features()`. They must be kept in sync by
-  hand — a change to one without the other will silently break predictions.
 - **No real risk management** — live trading sizes buys as 95% of buying
   power, with no stop-loss, max position sizing, or partial-fill handling.
 - **Model edge is unproven** — a single chronological 80/20 train/test split

@@ -5,16 +5,23 @@ Uses trained ML model to make real-time trading decisions
 
 import alpaca_trade_api as tradeapi
 import os
-import pandas as pd
-import numpy as np
 import joblib
 import time
 from datetime import datetime, timedelta
 import sys
 from dotenv import load_dotenv
-from config import SYMBOL, MODEL_PATH
+from config import SYMBOL, MODEL_PATH, TIMEFRAME
+from scripts.feature_calc import add_technical_features
 
 load_dotenv()
+
+# Maps config.TIMEFRAME to the matching Alpaca bar timeframe, and how many
+# calendar days to fetch to cover the longest rolling feature window (99
+# periods) with room for weekends/holidays.
+TIMEFRAME_MAP = {
+    "1h": (tradeapi.TimeFrame.Hour, 30),
+    "1d": (tradeapi.TimeFrame.Day, 200),
+}
 
 # Color codes
 class Colors:
@@ -42,9 +49,15 @@ class LiveTrader:
             api_secret,
             base_url='https://paper-api.alpaca.markets'  # Paper trading endpoint
         )
-        
+
         self.symbol = symbol
         self.position = None  # Track if we're in a position
+
+        if TIMEFRAME not in TIMEFRAME_MAP:
+            raise ValueError(
+                f'config.TIMEFRAME must be "1h" or "1d", got: {TIMEFRAME!r}'
+            )
+        self.bar_timeframe, self.lookback_days = TIMEFRAME_MAP[TIMEFRAME]
         
         # Load trained model
         print(f"{Colors.CYAN}Loading model from {model_path}...{Colors.END}")
@@ -71,28 +84,31 @@ class LiveTrader:
             print(f"{Colors.YELLOW}No position in {self.symbol}{Colors.END}")
             return 0
     
-    def get_historical_data(self, days=30):
+    def get_historical_data(self, days=None):
         """
         Fetch recent historical data for feature engineering
-        
+
         Args:
-            days: Number of days to fetch
+            days: Number of days to fetch (defaults to enough for the
+                  configured timeframe's longest rolling feature window)
         """
+        if days is None:
+            days = self.lookback_days
         print(f"\n{Colors.CYAN}Fetching {days} days of historical data...{Colors.END}")
-        
+
         # Calculate start date
         end = datetime.now()
         start = end - timedelta(days=days)
-        
+
         # Fetch bars (format dates as YYYY-MM-DD)
         barset = self.api.get_bars(
             self.symbol,
-            tradeapi.TimeFrame.Hour,
+            self.bar_timeframe,
             start=start.strftime('%Y-%m-%d'),
             end=end.strftime('%Y-%m-%d'),
             feed='iex',
         ).df
-        
+
         # Rename columns to match our format
         barset = barset.reset_index()
         barset = barset.rename(columns={
@@ -103,73 +119,19 @@ class LiveTrader:
             'close': 'close',
             'volume': 'volume'
         })
-        
-        print(f"{Colors.GREEN}✓ Fetched {len(barset)} hourly bars{Colors.END}")
+
+        print(f"{Colors.GREEN}✓ Fetched {len(barset)} bars{Colors.END}")
         return barset
-    
-    def calculate_features(self, df):
-        """
-        Calculate technical indicators (same as feature_calculator.py)
-        """
-        df = df.copy()
-        df = df.sort_values('timestamp').reset_index(drop=True)
-        
-        # Price features
-        df['returns_1h'] = df['close'].pct_change(1)
-        df['returns_24h'] = df['close'].pct_change(24)
-        
-        # Moving averages
-        df['sma_7'] = df['close'].rolling(window=7).mean()
-        df['sma_25'] = df['close'].rolling(window=25).mean()
-        df['sma_99'] = df['close'].rolling(window=99).mean()
-        df['price_to_sma7'] = df['close'] / df['sma_7']
-        df['price_to_sma25'] = df['close'] / df['sma_25']
-        
-        # EMAs
-        df['ema_12'] = df['close'].ewm(span=12).mean()
-        df['ema_26'] = df['close'].ewm(span=26).mean()
-        
-        # Volatility
-        df['volatility_24h'] = df['close'].rolling(window=24).std()
-        
-        # Bollinger Bands
-        df['bb_middle'] = df['close'].rolling(window=20).mean()
-        bb_std = df['close'].rolling(window=20).std()
-        df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
-        df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
-        df['bb_position'] = (df['close'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'])
-        
-        # RSI
-        delta = df['close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
-        df['rsi'] = 100 - (100 / (1 + rs))
-        
-        # MACD
-        df['macd'] = df['ema_12'] - df['ema_26']
-        df['macd_signal'] = df['macd'].ewm(span=9).mean()
-        df['macd_diff'] = df['macd'] - df['macd_signal']
-        
-        # Volume
-        df['volume_sma_24h'] = df['volume'].rolling(window=24).mean()
-        df['volume_ratio'] = df['volume'] / df['volume_sma_24h']
-        
-        # Time features
-        df['hour'] = df['timestamp'].dt.hour
-        df['day_of_week'] = df['timestamp'].dt.dayofweek
-        
-        return df
-    
+
     def make_prediction(self):
         """
         Get current market data and make a prediction
         """
         # Fetch historical data
-        df = self.get_historical_data(days=30)
-        
-        # Calculate features
-        df = self.calculate_features(df)
+        df = self.get_historical_data()
+
+        # Calculate features (same logic used to build the training data)
+        df = add_technical_features(df)
         
         # Get most recent complete row
         df = df.dropna()
