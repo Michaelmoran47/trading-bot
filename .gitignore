@@ -18,6 +18,9 @@ models/*.pkl
 # Results
 results/*.png
 
+# Logs
+logs/*.log
+
 # OS files
 .DS_Store
 .idea/
