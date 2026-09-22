@@ -11,7 +11,10 @@ import joblib
 import time
 from datetime import datetime, timedelta
 import sys
+from dotenv import load_dotenv
 from config import SYMBOL, MODEL_PATH
+
+load_dotenv()
 
 # Color codes
 class Colors:
