@@ -23,14 +23,17 @@ TIMEFRAME_MAP = {
     "1d": (tradeapi.TimeFrame.Day, 200),
 }
 
-# Color codes
+# Color codes -- only emitted on an interactive terminal. When stdout is
+# redirected to a file (e.g. the cron log), raw ANSI escapes and emoji can
+# render as garbled symbols in some viewers, so both are dropped entirely.
 class Colors:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    CYAN = '\033[96m'
-    BOLD = '\033[1m'
-    END = '\033[0m'
+    _enabled = sys.stdout.isatty()
+    RED = '\033[91m' if _enabled else ''
+    GREEN = '\033[92m' if _enabled else ''
+    YELLOW = '\033[93m' if _enabled else ''
+    CYAN = '\033[96m' if _enabled else ''
+    BOLD = '\033[1m' if _enabled else ''
+    END = '\033[0m' if _enabled else ''
 
 class LiveTrader:
     def __init__(self, api_key, api_secret, symbol='AAPL', model_path='models/trained_model.pkl'):
@@ -63,7 +66,7 @@ class LiveTrader:
         # Load trained model
         print(f"{Colors.CYAN}Loading model from {model_path}...{Colors.END}")
         self.model = joblib.load(model_path)
-        print(f"{Colors.GREEN}✓ Model loaded{Colors.END}")
+        print(f"{Colors.GREEN}Model loaded{Colors.END}")
         
     def get_account_info(self):
         """Get account information"""
@@ -132,7 +135,7 @@ class LiveTrader:
             'volume': 'volume'
         })
 
-        print(f"{Colors.GREEN}✓ Fetched {len(barset)} bars{Colors.END}")
+        print(f"{Colors.GREEN}Fetched {len(barset)} bars{Colors.END}")
         return barset
 
     def make_prediction(self):
@@ -210,9 +213,9 @@ class LiveTrader:
                     order_args['qty'] = shares_to_buy
                 order = self.api.submit_order(**order_args)
                 
-                print(f"{Colors.GREEN}✓ Order placed: {order.id}{Colors.END}")
+                print(f"{Colors.GREEN}Order placed: {order.id}{Colors.END}")
             else:
-                print(f"{Colors.YELLOW}⚠ Not enough buying power{Colors.END}")
+                print(f"{Colors.YELLOW}Not enough buying power{Colors.END}")
                 
         elif signal == 0 and current_position > 0:
             # SELL signal and we have a position
@@ -228,10 +231,10 @@ class LiveTrader:
                 time_in_force='gtc' if self.is_crypto else 'day'
             )
             
-            print(f"{Colors.GREEN}✓ Order placed: {order.id}{Colors.END}")
+            print(f"{Colors.GREEN}Order placed: {order.id}{Colors.END}")
             
         else:
-            print(f"{Colors.CYAN}↔ No action needed{Colors.END}")
+            print(f"{Colors.CYAN}No action needed{Colors.END}")
     
     def is_market_open(self):
         """Check whether the exchange is currently open for trading"""
@@ -247,7 +250,7 @@ class LiveTrader:
         print(f"{'='*60}{Colors.END}\n")
 
         if not self.is_market_open():
-            print(f"{Colors.YELLOW}Market is closed — skipping this cycle{Colors.END}")
+            print(f"{Colors.YELLOW}Market is closed - skipping this cycle{Colors.END}")
             return
 
         # Get account info
@@ -278,7 +281,7 @@ class LiveTrader:
                 self.run_once()
                 
                 # Wait for next cycle
-                print(f"\n{Colors.YELLOW}💤 Sleeping for {interval_minutes} minutes...{Colors.END}")
+                print(f"\n{Colors.YELLOW}Sleeping for {interval_minutes} minutes...{Colors.END}")
                 time.sleep(interval_minutes * 60)
                 
         except KeyboardInterrupt:
