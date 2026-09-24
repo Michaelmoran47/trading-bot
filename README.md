@@ -58,9 +58,13 @@ same feature file reproduces the same model.
 bars, recomputes features, loads the trained model for the asset configured
 in `config.py`, and buys/sells based on the prediction.
 
-Currently only wired up for **stocks** (Alpaca's equity bar/order endpoints).
-Crypto isn't supported by `live_trader.py` yet even though `config.py` can be
-set to a crypto asset for the offline pipeline.
+Supports both `ASSET_TYPE` settings from `config.py`:
+- **Stock**: Alpaca's equity bars/orders API (IEX feed), whole-share `qty` orders,
+  and skips cycles when the market clock reports closed.
+- **Crypto**: Alpaca's crypto bars/orders API, `notional` (dollar-amount) buy
+  orders sized off current buying power, fractional position sizes, and no
+  market-hours check (crypto trades 24/7). Verified against Alpaca's actual
+  supported symbol list — e.g. `BTC/USDT` is valid.
 
 ### Credentials
 
@@ -85,8 +89,9 @@ python3 live_trader.py
 python3 live_trader.py --once
 ```
 
-Each cycle checks Alpaca's market clock first and skips (no API calls,
-no trade) if the market is closed.
+For stocks, each cycle checks Alpaca's market clock first and skips (no API
+calls, no trade) if the market is closed. Crypto trades 24/7, so crypto
+cycles never skip.
 
 ### Running it hourly via cron
 
@@ -107,8 +112,8 @@ error) just logs a traceback and waits for the next hourly fire.
 
 ## Known limitations
 
-- **No crypto support in `live_trader.py`** — only Alpaca's stock/equity API
-  is implemented, even though the offline pipeline supports crypto via Kraken.
+- **Crypto live trading uses Alpaca's crypto market-data endpoint** while the
+  BTC model was trained on Kraken data; results may differ from backtests.
 - **No real risk management** — live trading sizes buys as 95% of buying
   power, with no stop-loss, max position sizing, or partial-fill handling.
 - **Model edge is unproven** — a single chronological 80/20 train/test split

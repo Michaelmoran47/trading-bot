@@ -10,7 +10,7 @@ import time
 from datetime import datetime, timedelta
 import sys
 from dotenv import load_dotenv
-from config import SYMBOL, MODEL_PATH, TIMEFRAME
+from config import ASSET_TYPE, SYMBOL, MODEL_PATH, TIMEFRAME
 from scripts.feature_calc import add_technical_features
 
 load_dotenv()
@@ -51,6 +51,7 @@ class LiveTrader:
         )
 
         self.symbol = symbol
+        self.is_crypto = ASSET_TYPE == 'crypto'
         self.position = None  # Track if we're in a position
 
         if TIMEFRAME not in TIMEFRAME_MAP:
@@ -77,8 +78,9 @@ class LiveTrader:
         """Check if we have an open position"""
         try:
             position = self.api.get_position(self.symbol)
-            qty = int(position.qty)
-            print(f"{Colors.GREEN}Current position: {qty} shares of {self.symbol}{Colors.END}")
+            qty = float(position.qty)
+            unit = 'units' if self.is_crypto else 'shares'
+            print(f"{Colors.GREEN}Current position: {qty:g} {unit} of {self.symbol}{Colors.END}")
             return qty
         except:
             print(f"{Colors.YELLOW}No position in {self.symbol}{Colors.END}")
@@ -101,16 +103,26 @@ class LiveTrader:
         start = end - timedelta(days=days)
 
         # Fetch bars (format dates as YYYY-MM-DD)
-        barset = self.api.get_bars(
-            self.symbol,
-            self.bar_timeframe,
-            start=start.strftime('%Y-%m-%d'),
-            end=end.strftime('%Y-%m-%d'),
-            feed='iex',
-        ).df
+        if self.is_crypto:
+            barset = self.api.get_crypto_bars(
+                self.symbol,
+                self.bar_timeframe,
+                start=start.strftime('%Y-%m-%d'),
+                end=end.strftime('%Y-%m-%d'),
+            ).df
+        else:
+            barset = self.api.get_bars(
+                self.symbol,
+                self.bar_timeframe,
+                start=start.strftime('%Y-%m-%d'),
+                end=end.strftime('%Y-%m-%d'),
+                feed='iex',
+            ).df
 
         # Rename columns to match our format
         barset = barset.reset_index()
+        if 'symbol' in barset.columns:
+            barset = barset.drop(columns=['symbol'])
         barset = barset.rename(columns={
             'timestamp': 'timestamp',
             'open': 'open',
@@ -161,8 +173,14 @@ class LiveTrader:
         current_position = self.get_current_position()
         
         # Get current price
-        latest_trade = self.api.get_latest_trade(self.symbol, feed='iex')
-        current_price = latest_trade.price
+        if self.is_crypto:
+            latest_bar = self.api.get_crypto_bars(
+                self.symbol, self.bar_timeframe, limit=1
+            ).df.iloc[-1]
+            current_price = float(latest_bar.close)
+        else:
+            latest_trade = self.api.get_latest_trade(self.symbol, feed='iex')
+            current_price = latest_trade.price
         print(f"Current price: ${current_price:.2f}")
         
         if signal == 1 and current_position == 0:
@@ -171,19 +189,26 @@ class LiveTrader:
             buying_power = float(account.buying_power)
             
             # Calculate shares to buy (use 95% of buying power for safety)
-            shares_to_buy = int((buying_power * 0.95) / current_price)
+            shares_to_buy = (buying_power * 0.95) / current_price
+            if not self.is_crypto:
+                shares_to_buy = int(shares_to_buy)
             
             if shares_to_buy > 0:
-                print(f"\n{Colors.GREEN}{Colors.BOLD}🔥 BUYING {shares_to_buy} shares of {self.symbol}{Colors.END}")
+                unit = 'units' if self.is_crypto else 'shares'
+                print(f"\n{Colors.GREEN}{Colors.BOLD}BUYING {shares_to_buy:g} {unit} of {self.symbol}{Colors.END}")
                 
                 # Place market order
-                order = self.api.submit_order(
-                    symbol=self.symbol,
-                    qty=shares_to_buy,
-                    side='buy',
-                    type='market',
-                    time_in_force='day'
-                )
+                order_args = {
+                    'symbol': self.symbol,
+                    'side': 'buy',
+                    'type': 'market',
+                    'time_in_force': 'gtc' if self.is_crypto else 'day',
+                }
+                if self.is_crypto:
+                    order_args['notional'] = round(buying_power * 0.95, 2)
+                else:
+                    order_args['qty'] = shares_to_buy
+                order = self.api.submit_order(**order_args)
                 
                 print(f"{Colors.GREEN}✓ Order placed: {order.id}{Colors.END}")
             else:
@@ -191,7 +216,8 @@ class LiveTrader:
                 
         elif signal == 0 and current_position > 0:
             # SELL signal and we have a position
-            print(f"\n{Colors.RED}{Colors.BOLD}📉 SELLING {current_position} shares of {self.symbol}{Colors.END}")
+            unit = 'units' if self.is_crypto else 'shares'
+            print(f"\n{Colors.RED}{Colors.BOLD}SELLING {current_position:g} {unit} of {self.symbol}{Colors.END}")
             
             # Place market order to close position
             order = self.api.submit_order(
@@ -199,7 +225,7 @@ class LiveTrader:
                 qty=current_position,
                 side='sell',
                 type='market',
-                time_in_force='day'
+                time_in_force='gtc' if self.is_crypto else 'day'
             )
             
             print(f"{Colors.GREEN}✓ Order placed: {order.id}{Colors.END}")
@@ -209,6 +235,8 @@ class LiveTrader:
     
     def is_market_open(self):
         """Check whether the exchange is currently open for trading"""
+        if self.is_crypto:
+            return True
         clock = self.api.get_clock()
         return clock.is_open
 
