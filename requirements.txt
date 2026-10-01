@@ -1,6 +1,11 @@
 pandas>=1.5.0
 numpy>=1.21.0
-scikit-learn>=1.0.0
+# Pinned exactly: a RandomForestClassifier pickle trained on one sklearn
+# version can silently misbehave (not just warn) when unpickled on a
+# different one. Every environment that loads models/*.pkl must match
+# whatever version actually trained them -- re-pin and retrain together
+# if you ever bump this.
+scikit-learn==1.8.0
 joblib>=1.0.0
 matplotlib>=3.5.0
 ccxt>=4.0.0
